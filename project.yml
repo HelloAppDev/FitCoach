@@ -1,0 +1,37 @@
+name: FitCoach
+options:
+  bundleIdPrefix: com.sergeykuznetsov
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  FitCoach:
+    type: application
+    platform: iOS
+    sources:
+      - path: FitCoach
+    info:
+      path: FitCoach/Info.plist
+      properties:
+        CFBundleDisplayName: FitCoach
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: Нужно, чтобы подключиться к ИИ-серверу (Ollama) на компьютере в той же сети.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sergeykuznetsov.FitCoach
+        PRODUCT_NAME: FitCoach
+        TARGETED_DEVICE_FAMILY: "1"
+        ENABLE_PREVIEWS: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
