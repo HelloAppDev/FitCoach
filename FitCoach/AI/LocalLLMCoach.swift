@@ -5,8 +5,7 @@ enum CoachLLMError: LocalizedError {
     case badURL
     case http(status: Int, body: String)
     case noContent
-    case toolsUnsupported
-    case tooManyToolCalls
+    case invalidAgentPlan
 
     var errorDescription: String? {
         switch self {
@@ -17,17 +16,14 @@ enum CoachLLMError: LocalizedError {
             return "Сервер вернул \(status). \(detail.isEmpty ? "" : String(detail.prefix(300)))"
         case .noContent:
             return "Модель не вернула текст. Проверь, запущен ли сервер и загружена ли модель."
-        case .toolsUnsupported:
-            return "Модель не поддерживает вызов инструментов."
-        case .tooManyToolCalls:
-            return "Модель зациклилась на вызовах инструментов. Попробуй переформулировать вопрос."
+        case .invalidAgentPlan:
+            return "Модель не смогла составить план действий. Попробуй переформулировать вопрос."
         }
     }
 }
 
-/// ИИ-агент поверх любого OpenAI-совместимого сервера (Ollama, LM Studio и т.п.).
-/// Цикл агента: запрос → модель просит инструмент → приложение его выполняет →
-/// результат уходит модели → … → финальный текстовый ответ.
+/// ИИ-агент на базе локальной Gemma 3.
+/// Цикл: модель выбирает инструменты → приложение выполняет их → модель формирует ответ.
 @MainActor
 @Observable
 final class LocalLLMCoach {
@@ -35,21 +31,14 @@ final class LocalLLMCoach {
     /// Обновляется перед каждым сообщением, чтобы модель видела свежие данные.
     var context: CoachContext
     private var history: [LLMMessage] = []
-    /// Модели, которые ответили «does not support tools» — с ними работаем без инструментов.
-    private var modelsWithoutTools: Set<String> = []
 
-    /// Сколько последних вопросов пользователя держать в истории: у маленьких моделей короткое окно контекста.
+    /// Сколько последних вопросов пользователя держать в истории: у локальной модели короткое окно контекста.
     private static let maxUserTurns = 6
-    /// Сколько раз подряд модель может вызвать инструменты, прежде чем мы остановим цикл.
-    private static let maxToolRounds = 4
 
     init(settings: CoachSettings, context: CoachContext) {
         self.settings = settings
         self.context = context
     }
-
-    /// Включены ли инструменты для текущей модели (выключаются, если сервер ответил, что модель их не умеет).
-    var toolsEnabled: Bool { !modelsWithoutTools.contains(settings.model) }
 
     func reset() {
         history.removeAll()
@@ -64,16 +53,22 @@ final class LocalLLMCoach {
         }
         request.timeoutInterval = 15
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw CoachLLMError.http(status: -1, body: "") }
-        guard (200..<300).contains(http.statusCode) else {
-            throw CoachLLMError.http(status: http.statusCode, body: String(data: data, encoding: .utf8) ?? "")
+        guard let http = response as? HTTPURLResponse else {
+            throw CoachLLMError.http(status: -1, body: "")
         }
+        guard (200..<300).contains(http.statusCode) else {
+            throw CoachLLMError.http(
+                status: http.statusCode,
+                body: String(data: data, encoding: .utf8) ?? ""
+            )
+        }
+
         struct ModelsResponse: Decodable {
             struct Item: Decodable { let id: String }
             let data: [Item]
         }
-        let decoded = try JSONDecoder().decode(ModelsResponse.self, from: data)
-        return decoded.data.map(\.id)
+
+        return try JSONDecoder().decode(ModelsResponse.self, from: data).data.map(\.id)
     }
 
     func streamRespond(to prompt: String) -> AsyncThrowingStream<String, Error> {
@@ -84,27 +79,29 @@ final class LocalLLMCoach {
         return AsyncThrowingStream { continuation in
             let task = Task { @MainActor in
                 do {
-                    for _ in 0..<Self.maxToolRounds {
-                        let reply = try await self.completion { continuation.yield($0) }
-
-                        if reply.toolCalls.isEmpty {
-                            guard !reply.content.isEmpty else { throw CoachLLMError.noContent }
-                            self.history.append(LLMMessage(role: "assistant", content: reply.content))
-                            continuation.finish()
-                            return
-                        }
-
-                        // Модель попросила инструменты: выполняем их и отдаём результаты обратно.
-                        continuation.yield("Смотрю твои данные…")
-                        self.history.append(LLMMessage(role: "assistant", content: reply.content, toolCalls: reply.toolCalls))
-                        for call in reply.toolCalls {
-                            let output = CoachTools.run(name: call.name, argumentsJSON: call.arguments, context: self.context)
-                            self.history.append(LLMMessage(role: "tool", content: output, toolCallID: call.id))
-                        }
+                    let actions = try await self.planActions()
+                    let toolResults = actions.map { action in
+                        let result = CoachTools.run(
+                            name: action.name,
+                            arguments: action.arguments,
+                            context: self.context
+                        )
+                        return "Инструмент \(action.name):\n\(result)"
                     }
-                    throw CoachLLMError.tooManyToolCalls
+                    if !toolResults.isEmpty {
+                        continuation.yield("Проверяю данные и выполняю расчёт…")
+                    }
+
+                    let content = try await Self.stream(
+                        config: self.settings.config,
+                        messages: self.requestMessages(toolResults: toolResults),
+                        onText: { continuation.yield($0) }
+                    )
+                    guard !content.isEmpty else { throw CoachLLMError.noContent }
+                    self.history.append(LLMMessage(role: "assistant", content: content))
+                    continuation.finish()
                 } catch {
-                    // Откатываем весь неудавшийся обмен, включая промежуточные вызовы инструментов.
+                    // Не сохраняем неудавшийся вопрос в истории диалога.
                     self.history.removeSubrange(checkpoint...)
                     continuation.finish(throwing: error)
                 }
@@ -113,24 +110,31 @@ final class LocalLLMCoach {
         }
     }
 
-    /// Один запрос к модели. Если модель не умеет инструменты — повторяем без них.
-    private func completion(onText: (String) -> Void) async throws -> LLMReply {
-        let config = settings.config
-        if toolsEnabled {
-            do {
-                return try await Self.stream(config: config, messages: requestMessages(tools: true), tools: true, onText: onText)
-            } catch CoachLLMError.toolsUnsupported {
-                modelsWithoutTools.insert(config.model)
-            }
+    /// Первый запрос к модели: выбрать необходимые действия, не формируя ответ пользователю.
+    private func planActions() async throws -> [AgentAction] {
+        let plannerPrompt = """
+        Ты планировщик действий ИИ-агента фитнес-приложения.
+        Проанализируй последний запрос с учётом истории и выбери только необходимые инструменты.
+
+        \(CoachTools.planningGuide)
+        """
+        let messages = [["role": "system", "content": plannerPrompt]] + history.map(\.json)
+        let plan = try await Self.complete(config: settings.config, messages: messages)
+        return try Self.parseActions(from: plan)
+    }
+
+    private func requestMessages(toolResults: [String]) -> [[String: Any]] {
+        var messages = [["role": "system", "content": context.systemPrompt]] + history.map(\.json)
+        if !toolResults.isEmpty {
+            messages.append([
+                "role": "system",
+                "content": "Результаты инструментов приложения. Считай эти данные точными и используй их в ответе:\n\n\(toolResults.joined(separator: "\n\n"))"
+            ])
         }
-        return try await Self.stream(config: config, messages: requestMessages(tools: false), tools: false, onText: onText)
+        return messages
     }
 
-    private func requestMessages(tools: Bool) -> [[String: Any]] {
-        [["role": "system", "content": context.systemPrompt(toolsEnabled: tools)]] + history.map(\.json)
-    }
-
-    /// Оставляем последние `maxUserTurns` вопросов вместе с ответами и вызовами инструментов.
+    /// Оставляем последние `maxUserTurns` вопросов вместе с ответами.
     private func trimHistory() {
         let userIndices = history.indices.filter { history[$0].role == "user" }
         guard userIndices.count >= Self.maxUserTurns else { return }
@@ -140,10 +144,9 @@ final class LocalLLMCoach {
     private static func stream(
         config: LLMConfig,
         messages: [[String: Any]],
-        tools: Bool,
         onText: (String) -> Void
-    ) async throws -> LLMReply {
-        let request = try makeRequest(config: config, messages: messages, tools: tools)
+    ) async throws -> String {
+        let request = try makeRequest(config: config, messages: messages)
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
 
         guard let http = response as? HTTPURLResponse else {
@@ -153,91 +156,109 @@ final class LocalLLMCoach {
         guard (200..<300).contains(http.statusCode) else {
             var body = ""
             for try await line in bytes.lines { body += line }
-            if tools && body.contains("does not support tools") { throw CoachLLMError.toolsUnsupported }
             throw CoachLLMError.http(status: http.statusCode, body: body)
         }
 
         var content = ""
-        // Вызовы инструментов могут приходить кусками — собираем их по index.
-        var calls: [Int: LLMToolCall] = [:]
         for try await line in bytes.lines {
             guard line.hasPrefix("data:") else { continue }
             let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
             if payload.isEmpty { continue }
             if payload == "[DONE]" { break }
             guard let data = payload.data(using: .utf8),
-                  let delta = try? JSONDecoder().decode(ChatChunk.self, from: data).choices.first?.delta else { continue }
+                  let text = try? JSONDecoder().decode(ChatChunk.self, from: data).choices.first?.delta.content,
+                  !text.isEmpty else { continue }
 
-            if let text = delta.content, !text.isEmpty {
-                content += text
-                onText(content)
-            }
-            for (position, part) in (delta.toolCalls ?? []).enumerated() {
-                let index = part.index ?? position
-                var call = calls[index] ?? LLMToolCall(id: part.id ?? "call_\(index)", name: "", arguments: "")
-                call.name += part.function?.name ?? ""
-                call.arguments += part.function?.arguments ?? ""
-                calls[index] = call
-            }
+            content += text
+            onText(content)
         }
 
-        let toolCalls = calls.keys.sorted().compactMap { calls[$0] }.filter { !$0.name.isEmpty }
-        return LLMReply(content: content, toolCalls: toolCalls)
+        return content
     }
 
-    private static func makeRequest(config: LLMConfig, messages: [[String: Any]], tools: Bool) throws -> URLRequest {
+    /// Непотоковый запрос используется для скрытого этапа планирования действий.
+    private static func complete(config: LLMConfig, messages: [[String: Any]]) async throws -> String {
+        let request = try makeRequest(
+            config: config,
+            messages: messages,
+            stream: false,
+            temperature: 0
+        )
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw CoachLLMError.http(status: -1, body: "")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw CoachLLMError.http(
+                status: http.statusCode,
+                body: String(data: data, encoding: .utf8) ?? ""
+            )
+        }
+        let decoded = try JSONDecoder().decode(ChatCompletion.self, from: data)
+        guard let content = decoded.choices.first?.message.content, !content.isEmpty else {
+            throw CoachLLMError.noContent
+        }
+        return content
+    }
+
+    private static func parseActions(from content: String) throws -> [AgentAction] {
+        guard let start = content.firstIndex(of: "{"),
+              let end = content.lastIndex(of: "}"),
+              start <= end,
+              let data = String(content[start...end]).data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rawActions = object["actions"] as? [[String: Any]] else {
+            throw CoachLLMError.invalidAgentPlan
+        }
+
+        return rawActions.prefix(3).compactMap { item in
+            guard let name = item["name"] as? String, CoachTools.isAllowed(name) else { return nil }
+            return AgentAction(name: name, arguments: item["arguments"] as? [String: Any] ?? [:])
+        }
+    }
+
+    private static func makeRequest(config: LLMConfig, messages: [[String: Any]]) throws -> URLRequest {
+        try makeRequest(config: config, messages: messages, stream: true, temperature: 0.6)
+    }
+
+    private static func makeRequest(
+        config: LLMConfig,
+        messages: [[String: Any]],
+        stream: Bool,
+        temperature: Double
+    ) throws -> URLRequest {
         guard let base = URL(string: config.baseURLString) else { throw CoachLLMError.badURL }
 
-        var body: [String: Any] = [
+        let body: [String: Any] = [
             "model": config.model,
             "messages": messages,
-            "stream": true,
-            "temperature": 0.6
+            "stream": stream,
+            "temperature": temperature
         ]
-        if tools { body["tools"] = CoachTools.definitions }
 
         var request = URLRequest(url: base.appendingPathComponent("chat/completions"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
         if !config.apiKey.isEmpty {
             request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
         }
-
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.timeoutInterval = 120
         return request
     }
 }
 
-// MARK: - Формат сообщений OpenAI Chat Completions
-
-private struct LLMToolCall {
-    let id: String
-    var name: String
-    var arguments: String
-}
-
-private struct LLMReply {
-    let content: String
-    let toolCalls: [LLMToolCall]
+private struct AgentAction {
+    let name: String
+    let arguments: [String: Any]
 }
 
 private struct LLMMessage {
     let role: String
     let content: String
-    var toolCalls: [LLMToolCall] = []
-    var toolCallID: String?
 
     var json: [String: Any] {
-        var json: [String: Any] = ["role": role, "content": content]
-        if !toolCalls.isEmpty {
-            json["tool_calls"] = toolCalls.map {
-                ["id": $0.id, "type": "function", "function": ["name": $0.name, "arguments": $0.arguments]]
-            }
-        }
-        if let toolCallID { json["tool_call_id"] = toolCallID }
-        return json
+        ["role": role, "content": content]
     }
 }
 
@@ -245,24 +266,19 @@ private struct ChatChunk: Decodable {
     struct Choice: Decodable {
         struct Delta: Decodable {
             let content: String?
-            let toolCalls: [ToolCallDelta]?
-
-            enum CodingKeys: String, CodingKey {
-                case content
-                case toolCalls = "tool_calls"
-            }
         }
         let delta: Delta
     }
 
-    struct ToolCallDelta: Decodable {
-        struct Function: Decodable {
-            let name: String?
-            let arguments: String?
+    let choices: [Choice]
+}
+
+private struct ChatCompletion: Decodable {
+    struct Choice: Decodable {
+        struct Message: Decodable {
+            let content: String?
         }
-        let index: Int?
-        let id: String?
-        let function: Function?
+        let message: Message
     }
 
     let choices: [Choice]

@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4A4138FE9C5C0F2C358F2EA8 /* CoachTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = C521FF8409F4CB859CAAD87B /* CoachTools.swift */; };
 		11E78BEE381DA189FCFF3F36 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F213E36DEDEEB944C9ACF58 /* HomeView.swift */; };
 		1F5644ECD215F0095E8E4955 /* WorkoutSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE7173925611BBE23787BC77 /* WorkoutSet.swift */; };
 		2C4C6E61EA4D7722B8AE49F6 /* CoachSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0839AF6A47504C0FB1FF273F /* CoachSettingsView.swift */; };
 		463CA3A631E7C1DBEE2A7FB8 /* FitCoachApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CB85E9030E4074F6C47563 /* FitCoachApp.swift */; };
-		4A4138FE9C5C0F2C358F2EA8 /* CoachTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = C521FF8409F4CB859CAAD87B /* CoachTools.swift */; };
 		4BD5E1F75E116865EADF25D8 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB9390CA398345F8B0C12785 /* ProfileView.swift */; };
 		5D49B30E280B8F0D17FCB12F /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74C8BFA36757E9E7F1BB4208 /* UserProfile.swift */; };
 		6560E3B5E5481BF9606E10B2 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A028AE5A7411E17636C43FB6 /* OnboardingView.swift */; };
@@ -28,6 +28,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C521FF8409F4CB859CAAD87B /* CoachTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTools.swift; sourceTree = "<group>"; };
 		01CB85E9030E4074F6C47563 /* FitCoachApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitCoachApp.swift; sourceTree = "<group>"; };
 		0839AF6A47504C0FB1FF273F /* CoachSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachSettingsView.swift; sourceTree = "<group>"; };
 		13291C4C4567C7B5DB23B704 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -39,7 +40,6 @@
 		79DE340BBCECA4A9C45FE9AE /* FitCoach.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FitCoach.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8B0AA6AA774BAC0AB9A86C1F /* NutritionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionEngine.swift; sourceTree = "<group>"; };
 		A028AE5A7411E17636C43FB6 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
-		C521FF8409F4CB859CAAD87B /* CoachTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTools.swift; sourceTree = "<group>"; };
 		D147E83C60381FCF1968FCC6 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		D5391D27B82E97866542699F /* CoachContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachContext.swift; sourceTree = "<group>"; };
 		D8EE1F29252F1618D34718C3 /* TrainingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingEngine.swift; sourceTree = "<group>"; };
