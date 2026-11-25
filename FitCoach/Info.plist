@@ -25,6 +25,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>FitCoach добавляет запланированные тренировки в календарь только после вашего подтверждения.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Нужно, чтобы подключиться к ИИ-серверу (Ollama) на компьютере в той же сети.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

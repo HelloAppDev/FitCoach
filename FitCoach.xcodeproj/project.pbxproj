@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9C8D7E6F5A4B321001234567 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8E7F6A5B4C321001234567 /* CalendarService.swift */; };
 		4A4138FE9C5C0F2C358F2EA8 /* CoachTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = C521FF8409F4CB859CAAD87B /* CoachTools.swift */; };
 		11E78BEE381DA189FCFF3F36 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F213E36DEDEEB944C9ACF58 /* HomeView.swift */; };
 		1F5644ECD215F0095E8E4955 /* WorkoutSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE7173925611BBE23787BC77 /* WorkoutSet.swift */; };
@@ -28,6 +29,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9D8E7F6A5B4C321001234567 /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
 		C521FF8409F4CB859CAAD87B /* CoachTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTools.swift; sourceTree = "<group>"; };
 		01CB85E9030E4074F6C47563 /* FitCoachApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitCoachApp.swift; sourceTree = "<group>"; };
 		0839AF6A47504C0FB1FF273F /* CoachSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachSettingsView.swift; sourceTree = "<group>"; };
@@ -86,9 +88,18 @@
 				CC095EA3982DA22D61718338 /* AI */,
 				7145F4D639B55E2F4B710A70 /* Engine */,
 				2518C457F7927FF50A1052B2 /* Models */,
+				9E8F7A6B5C4D321001234567 /* Services */,
 				D3BB6B3E277D345ED16128CE /* Views */,
 			);
 			path = FitCoach;
+			sourceTree = "<group>";
+		};
+		9E8F7A6B5C4D321001234567 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				9D8E7F6A5B4C321001234567 /* CalendarService.swift */,
+			);
+			path = Services;
 			sourceTree = "<group>";
 		};
 		CC095EA3982DA22D61718338 /* AI */ = {
@@ -183,6 +194,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9C8D7E6F5A4B321001234567 /* CalendarService.swift in Sources */,
 				A1E5A8C1CD47C9487DCE546E /* ChatView.swift in Sources */,
 				7520EBA0809C3727BE380DAE /* CoachContext.swift in Sources */,
 				8E974A9C46099E112D31555D /* CoachSettings.swift in Sources */,

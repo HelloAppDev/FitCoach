@@ -12,7 +12,8 @@ struct CoachSettingsView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
-                LabeledContent("Модель", value: CoachSettings.model)
+                LabeledContent("Диалог и изображения", value: CoachSettings.chatModel)
+                LabeledContent("Агент и инструменты", value: CoachSettings.agentModel)
                 SecureField("API-ключ (для Ollama не нужен)", text: $settings.apiKey)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -36,7 +37,7 @@ struct CoachSettingsView: View {
             } header: {
                 Text("Проверка")
             } footer: {
-                Text("Ollama (на Mac):\n1. Установи Ollama\n2. В терминале: ollama pull \(CoachSettings.model)\n3. Адрес сервера: http://127.0.0.1:11434/v1\n\nGemma работает как агент: сама выбирает разрешённый инструмент для получения норм питания, истории упражнения или расчёта следующей нагрузки.\n\nДля реального iPhone укажи IP Mac в сети (например http://192.168.1.5:11434/v1) и запусти Ollama с OLLAMA_HOST=0.0.0.0.")
+                Text("Ollama (на Mac):\n1. Установи Ollama\n2. Выполни: ollama pull \(CoachSettings.chatModel)\n3. Выполни: ollama pull \(CoachSettings.agentModel)\n4. Адрес сервера: http://127.0.0.1:11434/v1\n\nQwen планирует действия и выбирает инструменты. Gemma формирует ответы и анализирует изображения. Запись в системный календарь всегда требует подтверждения.\n\nДля реального iPhone укажи IP Mac в сети (например http://192.168.1.5:11434/v1) и запусти Ollama с OLLAMA_HOST=0.0.0.0.")
             }
         }
         .navigationTitle("ИИ-коуч")
@@ -46,11 +47,13 @@ struct CoachSettingsView: View {
         isChecking = true
         status = nil
         do {
-            let models = try await LocalLLMCoach.availableModels(config: settings.config)
-            if models.contains(CoachSettings.model) {
-                status = "Связь есть. Модель \(CoachSettings.model) готова к работе."
+            let models = try await LocalLLMCoach.availableModels(config: settings.chatConfig)
+            let required = [CoachSettings.chatModel, CoachSettings.agentModel]
+            let missing = required.filter { !models.contains($0) }
+            if missing.isEmpty {
+                status = "Связь есть. Gemma и Qwen готовы к работе."
             } else {
-                status = "Связь есть, но модель \(CoachSettings.model) не загружена. Выполни: ollama pull \(CoachSettings.model)"
+                status = "Связь есть, но не загружены: \(missing.joined(separator: ", ")). Выполни ollama pull для каждой модели."
             }
         } catch {
             status = "Ошибка: \(error.localizedDescription)"

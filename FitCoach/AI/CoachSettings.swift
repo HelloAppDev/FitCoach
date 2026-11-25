@@ -19,7 +19,8 @@ final class CoachSettings {
     }
 
     static let defaultBaseURL = "http://127.0.0.1:11434/v1"
-    static let model = "gemma3:4b"
+    static let chatModel = "gemma3:4b"
+    static let agentModel = "qwen3:8b"
 
     var baseURLString: String {
         didSet { Self.defaults.set(baseURLString, forKey: Keys.baseURL) }
@@ -33,7 +34,11 @@ final class CoachSettings {
         apiKey = Self.defaults.string(forKey: Keys.apiKey) ?? ""
     }
 
-    var config: LLMConfig {
-        LLMConfig(baseURLString: baseURLString, model: Self.model, apiKey: apiKey)
+    var chatConfig: LLMConfig {
+        LLMConfig(baseURLString: baseURLString, model: Self.chatModel, apiKey: apiKey)
+    }
+
+    var agentConfig: LLMConfig {
+        LLMConfig(baseURLString: baseURLString, model: Self.agentModel, apiKey: apiKey)
     }
 }
